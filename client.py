@@ -1058,3 +1058,7 @@ Morse code combined with ASCII afterwards."""
             if i.isalpha():
                 msg_final += i
         return msg_final
+    
+    
+    if __name__ == '__main__':
+        client = Client()
