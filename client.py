@@ -745,8 +745,8 @@ class Client:
         for i in range(65, 74):
             plugboard_letter = Button(self.root, text=" " + chr(i) + " ", font=self.text_font,
                                       bg="khaki", relief=RIDGE, height=2, width=3,
-                                      command=lambda i=i:
-                                      self.add_letter_in_plugboard(chr(i), lst_buttons))
+                                      command=lambda letter=chr(i):
+                                      self.add_letter_in_plugboard(letter, lst_buttons))
             plugboard_letter.grid(row=9, column=i - 64, pady=5, padx=5)
             lst_buttons.append(plugboard_letter)
 
@@ -922,7 +922,6 @@ class Client:
         user_label.pack(pady=10, padx=50)
         about_text = """My name is Jasmin, I am 17 years old and this is my final project
 for 12th grade in the Cyber Bagrut.
-
 The project contains a multi client-server connection.
 The project includes Enigma simulator and explanations about the encryption.
 It allows chatting between all the connected users.
@@ -981,25 +980,23 @@ Morse code combined with ASCII afterwards."""
                         raise RuntimeError("socket connection broken")
                     chunks.append(chunk)
                     bytes_recd = bytes_recd + len(chunk)
-                encryption_data = self.my_socket.recv(1024)
-                encryption_data = self.rsa_object.decrypt(encryption_data).decode()
-                sender_user = loads(self.my_socket.recv(1024))
 
-                settings_str = ""
-                for i in encryption_data:
-                    if i.isalpha() or i.isdigit():
-                        settings_str += i
-                enigma_sim.rotors.set_rotors(int(settings_str[0]), int(settings_str[1]),
-                                             int(settings_str[2]), settings_str[3],
-                                             settings_str[4], settings_str[5])
-                plugboard1_str = settings_str[6:(len(settings_str) - 6) // 2 + 6]
-                plugboard2_str = settings_str[(len(settings_str) - 6) // 2 + 6:]
+                encryption_data = loads(self.my_socket.recv(500))
+                encryption_data = self.rsa_object.decrypt(encryption_data).decode()
+
+                enigma_sim.rotors.set_rotors(int(encryption_data[0]), int(encryption_data[1]),
+                                             int(encryption_data[2]), encryption_data[3],
+                                             encryption_data[4], encryption_data[5])
+                plugboard1_str = encryption_data[6:(len(encryption_data) - 6) // 2 + 6]
+                plugboard2_str = encryption_data[(len(encryption_data) - 6) // 2 + 6:]
                 for i in range(len(plugboard1_str)):
                     enigma_sim.plugboard.add_letter(plugboard1_str[i])
                     enigma_sim.plugboard.add_letter(plugboard2_str[i])
+                msg = b''.join(chunks).decode()
+                msg, username = msg.split(";")
                 msg_dec = enigma_sim.decrypt_encrypt_text(morse_object.
-                                                          decrypt(b''.join(chunks).decode()))
-                self.msg_list.append([msg_dec, encryption_data, sender_user])
+                                                          decrypt(msg))
+                self.msg_list.append([msg_dec, encryption_data, username])
                 if self.refresh_button is not None:
                     self.refresh_button.configure(fg="red")
             except ConnectionResetError:
@@ -1025,10 +1022,16 @@ Morse code combined with ASCII afterwards."""
             for i in range(len(plugboard_settings[0])):
                 enigma_sim.plugboard.add_letter(plugboard_settings[0][i])
                 enigma_sim.plugboard.add_letter(plugboard_settings[1][i])
-        encryption_data = "{0}{1}{2}".format(str(enigma_sim.rotors.get_initial_setting()),
-                                             str(enigma_sim.plugboard.plugboard1),
-                                             str(enigma_sim.plugboard.plugboard2))
-
+        encryption_data_rotors = ""
+        for i in enigma_sim.rotors.get_initial_setting():
+            encryption_data_rotors += str(i)
+        encryption_data_p1 = ""
+        for i in enigma_sim.plugboard.plugboard1:
+            encryption_data_p1 += i
+        encryption_data_p2 = ""
+        for i in enigma_sim.plugboard.plugboard2:
+            encryption_data_p2 += i
+        encryption_data = encryption_data_rotors + encryption_data_p1 + encryption_data_p2
         my_msg = text_box.get("1.0", END)
         text_box.delete('1.0', END)
 
@@ -1043,6 +1046,7 @@ Morse code combined with ASCII afterwards."""
                 if sent == 0:
                     raise RuntimeError("socket connection broken")
                 total_sent = total_sent + sent
+            self.my_socket.send("encryption data;".encode())
             self.my_socket.send(self.rsa_object.encrypt(encryption_data.encode(), self.server_key))
 
     @staticmethod
@@ -1058,7 +1062,7 @@ Morse code combined with ASCII afterwards."""
             if i.isalpha():
                 msg_final += i
         return msg_final
-    
-    
-    if __name__ == '__main__':
-        client = Client()
+
+
+if __name__ == '__main__':
+    client = Client()
